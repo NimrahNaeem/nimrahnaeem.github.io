@@ -1,37 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  achievements,
-  education,
+  awards,
+  decks,
+  evascanModels,
   experience,
+  medals,
   metrics,
+  papers,
+  prisma,
   profile,
   projects,
-  research,
-  skillGroups,
-  type Domain,
-  type Project,
+  skills,
+  type Deck,
 } from "./data";
 import { CountUp } from "./components/CountUp";
-import { ProjectDialog } from "./components/ProjectDialog";
-import { SaliencyScan } from "./components/SaliencyScan";
+import { DeckViewer } from "./components/DeckViewer";
+import { Medal } from "./components/Medal";
+import { Motion } from "./components/Motion";
+import { PhoneDemo } from "./components/PhoneDemo";
 
 const sections = [
-  { id: "experience", label: "Experience" },
-  { id: "projects", label: "Projects" },
+  { id: "evascan", label: "EvaScan" },
+  { id: "motion", label: "The motion" },
+  { id: "work", label: "Work" },
+  { id: "decks", label: "Presentations" },
   { id: "research", label: "Research" },
-  { id: "skills", label: "Skills" },
   { id: "contact", label: "Contact" },
 ];
 
 type Theme = "light" | "dark";
-type Filter = { kind: "domain"; value: Domain } | { kind: "skill"; value: string } | null;
-
-const norm = (s: string) => s.toLowerCase();
-
-function projectUses(p: Project, skill: string) {
-  const s = norm(skill);
-  return [...p.stack, ...p.domains, ...(p.also ?? [])].some((x) => norm(x) === s);
-}
 
 function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -45,7 +42,7 @@ function useTheme() {
     try {
       localStorage.setItem("theme", next);
     } catch {
-      /* storage unavailable: theme still applies for this visit */
+      /* storage unavailable: the theme still applies for this visit */
     }
     setTheme(next);
   };
@@ -53,11 +50,13 @@ function useTheme() {
 }
 
 function useActiveSection(ids: string[]) {
-  const [active, setActive] = useState<string>("");
+  const [active, setActive] = useState("");
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible[0]) setActive(visible[0].target.id);
       },
       { rootMargin: "-35% 0px -55% 0px" },
@@ -71,28 +70,21 @@ function useActiveSection(ids: string[]) {
   return active;
 }
 
+function Ribbon({ className = "" }: { className?: string }) {
+  return <img className={`ribbon-logo ${className}`} src="/evascan/logo.png" alt="" width="44" height="44" />;
+}
+
 export default function App() {
   const { theme, toggle } = useTheme();
   const active = useActiveSection(useMemo(() => sections.map((s) => s.id), []));
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deck, setDeck] = useState<Deck | null>(null);
   const [roleId, setRoleId] = useState(experience[0].id);
-  const [filter, setFilter] = useState<Filter>(null);
-  const [openProject, setOpenProject] = useState<Project | null>(null);
+  const [prismaStep, setPrismaStep] = useState(prisma.length - 1);
   const [copied, setCopied] = useState(false);
 
   const role = experience.find((r) => r.id === roleId) ?? experience[0];
-  const domains = useMemo(() => Array.from(new Set(projects.flatMap((p) => p.domains))), []);
-
-  const shownProjects = projects.filter((p) => {
-    if (!filter) return true;
-    if (filter.kind === "domain") return p.domains.includes(filter.value);
-    return projectUses(p, filter.value);
-  });
-
-  const pickSkill = (skill: string) => {
-    setFilter({ kind: "skill", value: skill });
-    document.getElementById("projects")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const openDeck = (id: string) => setDeck(decks.find((d) => d.id === id) ?? null);
 
   const copyEmail = async () => {
     try {
@@ -115,11 +107,10 @@ export default function App() {
         <div className="wrap header-inner">
           <a className="brand" href="#top" aria-label="Nimrah Naeem, back to top">
             <span className="brand-mark" aria-hidden="true">
-              NN
+              N
             </span>
             <span className="brand-name">Nimrah Naeem</span>
           </a>
-
           <nav className={`nav ${menuOpen ? "is-open" : ""}`} aria-label="Sections">
             {sections.map((s) => (
               <a
@@ -133,7 +124,6 @@ export default function App() {
               </a>
             ))}
           </nav>
-
           <div className="header-actions">
             <button
               type="button"
@@ -179,54 +169,145 @@ export default function App() {
       </header>
 
       <main id="main">
-        {/* Hero */}
+        {/* ---------- Hero ---------- */}
         <section className="hero wrap" id="top">
           <div className="hero-copy">
             <p className="eyebrow">
               <span className="status-dot" aria-hidden="true" />
               {profile.current}
             </p>
-            <h1 className="hero-title">
-              I build AI that can <em>explain</em> what it sees.
+            <h1 className="hero-name">
+              Nimrah <span>Naeem</span>
             </h1>
-            <p className="hero-lede">{profile.summary}</p>
+            <p className="hero-motto">{profile.motto}</p>
+            <p className="hero-bio">{profile.bio}</p>
             <div className="hero-actions">
-              <a className="btn btn-primary" href="#projects">
-                View projects
+              <a className="btn btn-primary" href="#evascan">
+                Try EvaScan
+              </a>
+              <a className="btn btn-ghost" href="#decks">
+                See my decks
               </a>
               <a className="btn btn-ghost" href={profile.linkedin} target="_blank" rel="noreferrer">
                 LinkedIn
               </a>
-              <a className="btn btn-ghost" href={profile.github} target="_blank" rel="noreferrer">
-                GitHub
-              </a>
             </div>
             <p className="hero-meta">
-              {profile.role} · {profile.location}
+              AI & ML Engineer · Debater · {profile.location}
             </p>
           </div>
-          <SaliencyScan />
+
+          <div className="hero-medals">
+            <div className="medals">
+              {medals.map((m, i) => (
+                <Medal key={m.id} medal={m} delay={i * 180} />
+              ))}
+            </div>
+            <p className="medals-caption">Two gold medals, Institute of Space Technology. Tap one to turn it over.</p>
+          </div>
         </section>
 
-        {/* Metrics */}
         <section className="wrap" aria-label="Highlights">
           <dl className="metrics">
             {metrics.map((m) => (
               <div key={m.label} className="metric">
                 <dt className="metric-label">{m.label}</dt>
                 <dd className="metric-value">
-                  <CountUp value={m.value} decimals={m.decimals} prefix={m.prefix} suffix={m.suffix} />
+                  <CountUp value={m.value} decimals={m.decimals} suffix={m.suffix} />
                 </dd>
               </div>
             ))}
           </dl>
         </section>
 
-        {/* Experience */}
-        <section className="section wrap" id="experience" aria-labelledby="experience-title">
+        {/* ---------- EvaScan ---------- */}
+        <section className="evascan" id="evascan" aria-labelledby="evascan-title">
+          <div className="wrap">
+            <div className="eva-head">
+              <div className="eva-brand">
+                <Ribbon />
+                <div>
+                  <h2 id="evascan-title" className="eva-word">
+                    EvaScan
+                  </h2>
+                  <p className="eva-sub">AI-powered breast cancer screening & care</p>
+                </div>
+              </div>
+              <p className="eva-badge">
+                <span aria-hidden="true">★</span> Best FYP · Gold Medal, IST
+              </p>
+            </div>
+
+            <p className="eva-thesis">
+              What if hope could fit right in the palm of her hand?
+            </p>
+            <p className="eva-lede">
+              In Pakistan, 1 in 9 women is at risk of breast cancer, and too many are diagnosed too late. EvaScan brings
+              early detection to the phone she already carries: mammogram and ultrasound analysis, risk prediction and a
+              guided self-exam, with AI that shows why it flagged something.
+            </p>
+
+            <PhoneDemo />
+
+            <div className="eva-grid">
+              <div className="eva-card">
+                <p className="label">Model card</p>
+                <ul className="eva-models">
+                  {evascanModels.map((m) => (
+                    <li key={m.task}>
+                      <div className="eva-model-row">
+                        <span>
+                          {m.task} <span className="mono muted">· {m.model}</span>
+                        </span>
+                        <span className="mono tnum">
+                          {m.value}% <span className="muted">{m.metric.toLowerCase()}</span>
+                        </span>
+                      </div>
+                      <div className="meter" aria-hidden="true">
+                        <span style={{ width: `${m.value}%` }} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="eva-foot">Trained across 5,000+ medical images from public datasets.</p>
+              </div>
+              <div className="eva-card">
+                <p className="label">Team</p>
+                <p className="eva-team">
+                  Built by <strong>Nimrah Naeem</strong> and <strong>Ikram Ullah Qazi</strong>, supervised by{" "}
+                  <strong>Dr. Altaf Hussain</strong>, KICSIT, Institute of Space Technology.
+                </p>
+                <p className="eva-team muted">
+                  My focus: the AI. YOLOv8 detection, the ensemble ultrasound classifier, the DNN risk model and the
+                  Grad-CAM / saliency explainability.
+                </p>
+                <div className="eva-links">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => openDeck("evascan-pitch")}>
+                    Open the pitch deck
+                  </button>
+                  <a className="btn btn-ghost btn-sm" href="/evascan/poster.jpg" target="_blank" rel="noreferrer">
+                    View the poster
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="poster-scroll" tabIndex={0} aria-label="EvaScan poster, scroll sideways">
+              <img src="/evascan/poster.jpg" alt="EvaScan poster: breast cancer facts, target users, statistics, core benefits and SDG alignment" loading="lazy" />
+            </div>
+          </div>
+        </section>
+
+        {/* ---------- The motion ---------- */}
+        <section className="section wrap" id="motion" aria-label="The motion">
+          <Motion />
+        </section>
+
+        {/* ---------- Work ---------- */}
+        <section className="section wrap" id="work" aria-labelledby="work-title">
           <div className="section-head">
-            <p className="eyebrow">Experience</p>
-            <h2 id="experience-title">Research to production</h2>
+            <p className="eyebrow">Work</p>
+            <h2 id="work-title">From research to production</h2>
           </div>
 
           <div className="exp">
@@ -249,7 +330,7 @@ export default function App() {
             </div>
             <div className="exp-panel" role="tabpanel" id="exp-panel" aria-labelledby={`tab-${role.id}`}>
               <h3 className="exp-title">
-                {role.title} <span className="exp-at">at {role.org}</span>
+                {role.title} <span className="exp-at">· {role.org}</span>
               </h3>
               <p className="exp-meta mono">
                 {role.period} · {role.place}
@@ -259,196 +340,154 @@ export default function App() {
                   <li key={p}>{p}</li>
                 ))}
               </ul>
-              {role.stack && (
-                <ul className="chips" aria-label="Technologies">
-                  {role.stack.map((s) => (
-                    <li key={s} className="chip chip-static">
-                      {s}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           </div>
 
-          <div className="edu">
-            <p className="label">Education</p>
-            <p className="edu-line">
-              <strong>{education.degree}</strong>, {education.school}
-            </p>
-            <p className="edu-meta mono">
-              {education.period} · {education.result}
-            </p>
-          </div>
-        </section>
-
-        {/* Projects */}
-        <section className="section wrap" id="projects" aria-labelledby="projects-title">
-          <div className="section-head">
-            <p className="eyebrow">Projects</p>
-            <h2 id="projects-title">Selected work</h2>
-          </div>
-
-          <div className="filters" role="group" aria-label="Filter projects">
-            <button
-              type="button"
-              className="chip"
-              aria-pressed={filter === null}
-              onClick={() => setFilter(null)}
-            >
-              All
-            </button>
-            {domains.map((d) => (
-              <button
-                key={d}
-                type="button"
-                className="chip"
-                aria-pressed={filter?.kind === "domain" && filter.value === d}
-                onClick={() => setFilter({ kind: "domain", value: d })}
-              >
-                {d}
-              </button>
-            ))}
-            {filter?.kind === "skill" && (
-              <button type="button" className="chip chip-skill" aria-pressed="true" onClick={() => setFilter(null)}>
-                Uses {filter.value}
-                <span aria-hidden="true"> ×</span>
-                <span className="sr-only">, clear filter</span>
-              </button>
-            )}
-          </div>
-
-          <p className="sr-only" aria-live="polite">
-            Showing {shownProjects.length} of {projects.length} projects
-          </p>
-
           <div className="projects">
-            {shownProjects.map((p) => (
-              <article key={p.id} className={`project ${p.models ? "project-featured" : ""}`}>
-                <div className="project-top">
-                  <p className="eyebrow">{p.award ?? p.context ?? p.domains.join(" · ")}</p>
+            {projects.map((p) => (
+              <article key={p.id} className={`project project-${p.id}`}>
+                {p.cover && (
+                  <button type="button" className="project-cover" onClick={() => p.deck && openDeck(p.deck)}>
+                    <img src={p.cover} alt={`${p.name} deck cover`} loading="lazy" />
+                    <span className="project-cover-cta">Open the deck</span>
+                  </button>
+                )}
+                <div className="project-body">
+                  <p className="eyebrow">{p.tagline}</p>
                   <h3 className="project-name">{p.name}</h3>
-                  <p className="project-tagline">{p.tagline}</p>
-                </div>
-                <p className="project-summary">{p.summary}</p>
-
-                {p.models && (
-                  <ul className="bars" aria-label="Model results">
-                    {p.models.map((m) => (
-                      <li key={m.task} className="bar">
-                        <div className="bar-row">
-                          <span>
-                            {m.task} <span className="mono muted">· {m.model}</span>
-                          </span>
-                          <span className="mono tnum">
-                            {m.value}% <span className="muted">{m.metric.toLowerCase()}</span>
-                          </span>
-                        </div>
-                        <div className="meter" aria-hidden="true">
-                          <span style={{ width: `${m.value}%` }} />
-                        </div>
+                  <p>{p.summary}</p>
+                  <ul className="points">
+                    {p.points.map((x) => (
+                      <li key={x}>{x}</li>
+                    ))}
+                  </ul>
+                  <ul className="chips" aria-label="Technologies">
+                    {p.stack.map((s) => (
+                      <li key={s} className="chip">
+                        {s}
                       </li>
                     ))}
                   </ul>
-                )}
-
-                <ul className="chips chips-sm" aria-label="Technologies">
-                  {p.stack.slice(0, 5).map((s) => (
-                    <li key={s} className="chip chip-static">
-                      {s}
-                    </li>
-                  ))}
-                  {p.stack.length > 5 && <li className="chip chip-static muted">+{p.stack.length - 5}</li>}
-                </ul>
-
-                <button type="button" className="project-open" onClick={() => setOpenProject(p)}>
-                  View details
-                  <span aria-hidden="true"> →</span>
-                  <span className="sr-only"> about {p.name}</span>
-                </button>
+                </div>
               </article>
             ))}
           </div>
         </section>
 
-        {/* Research */}
+        {/* ---------- Presentations ---------- */}
+        <section className="section wrap" id="decks" aria-labelledby="decks-title">
+          <div className="section-head">
+            <p className="eyebrow">Presentations</p>
+            <h2 id="decks-title">The decks behind the work</h2>
+            <p className="section-lede">
+              Pitches and defences I've presented. Open one and page through it with the arrow keys or by swiping.
+            </p>
+          </div>
+          <ul className="deck-shelf">
+            {decks.map((d) => (
+              <li key={d.id}>
+                <button type="button" className="deck" onClick={() => setDeck(d)}>
+                  <span className="deck-cover">
+                    <img src={d.cover} alt="" loading="lazy" />
+                    <span className="deck-count mono">{d.slides} slides</span>
+                  </span>
+                  <span className="deck-title">{d.title}</span>
+                  <span className="deck-sub">{d.subtitle}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* ---------- Research ---------- */}
         <section className="section wrap" id="research" aria-labelledby="research-title">
           <div className="section-head">
             <p className="eyebrow">Research</p>
             <h2 id="research-title">AI in medical diagnosis</h2>
             <p className="section-lede">
-              As a Research Assistant at IST, I analysed 150+ studies and co-authored two review papers with faculty
-              researchers.
+              EvaScan started as a systematic literature review. Select a stage to see how 570 papers became 160.
             </p>
           </div>
+
+          <div className="research">
+            <ol className="prisma" aria-label="PRISMA flow of the systematic review">
+              {prisma.map((s, i) => (
+                <li key={s.label}>
+                  <button
+                    type="button"
+                    className="prisma-row"
+                    aria-pressed={i === prismaStep}
+                    onClick={() => setPrismaStep(i)}
+                  >
+                    <span className="prisma-bar" style={{ width: `${(s.n / prisma[0].n) * 100}%` }} />
+                    <span className="prisma-n mono tnum">{s.n}</span>
+                    <span className="prisma-label">{s.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <div className="prisma-note" aria-live="polite">
+              <p className="label">{prisma[prismaStep].label}</p>
+              <p className="prisma-note-n tnum">{prisma[prismaStep].n}</p>
+              <p>{prisma[prismaStep].note}</p>
+            </div>
+          </div>
+
           <ul className="papers">
-            {research.map((r) => (
-              <li key={r.title} className="paper">
-                <p className="label">{r.kind}</p>
-                <h3 className="paper-title">{r.title}</h3>
-                <p className="pill">{r.status}</p>
+            {papers.map((p) => (
+              <li key={p.title} className="paper">
+                <p className="label">{p.kind}</p>
+                <h3 className="paper-title">{p.title}</h3>
+                <p className="pill">{p.status}</p>
               </li>
             ))}
           </ul>
         </section>
 
-        {/* Skills */}
-        <section className="section wrap" id="skills" aria-labelledby="skills-title">
+        {/* ---------- Recognition & skills ---------- */}
+        <section className="section wrap" aria-labelledby="more-title">
           <div className="section-head">
-            <p className="eyebrow">Skills</p>
-            <h2 id="skills-title">Toolkit</h2>
-            <p className="section-lede">Select a skill to see the projects that use it.</p>
+            <p className="eyebrow">Beyond the medals</p>
+            <h2 id="more-title">Recognition & toolkit</h2>
           </div>
-          <div className="skills">
-            {skillGroups.map((g) => (
-              <div key={g.name} className="skill-group">
-                <h3 className="label">{g.name}</h3>
-                <ul className="chips">
-                  {g.items.map((s) => {
-                    const count = projects.filter((p) => projectUses(p, s)).length;
-                    return (
-                      <li key={s}>
-                        {count > 0 ? (
-                          <button type="button" className="chip" onClick={() => pickSkill(s)}>
-                            {s}
-                            <span className="chip-count mono" aria-label={`${count} projects`}>
-                              {count}
-                            </span>
-                          </button>
-                        ) : (
-                          <span className="chip chip-static">{s}</span>
-                        )}
+          <div className="more">
+            <ul className="awards">
+              {awards.map((a) => (
+                <li key={a.title} className="award">
+                  <span className="rosette" aria-hidden="true" />
+                  <div>
+                    <h3 className="award-title">{a.title}</h3>
+                    <p className="award-detail">
+                      {a.where}
+                      {a.year && ` · ${a.year}`}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="skills">
+              {skills.map((g) => (
+                <div key={g.group} className="skill-group">
+                  <p className="label">{g.group}</p>
+                  <ul className="chips">
+                    {g.items.map((s) => (
+                      <li key={s} className="chip">
+                        {s}
                       </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
-        {/* Achievements */}
-        <section className="section wrap" aria-labelledby="awards-title">
-          <div className="section-head">
-            <p className="eyebrow">Recognition</p>
-            <h2 id="awards-title">Achievements</h2>
-          </div>
-          <ul className="awards">
-            {achievements.map((a) => (
-              <li key={a.title} className="award">
-                <h3 className="award-title">{a.title}</h3>
-                <p className="award-detail">{a.detail}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* Contact */}
+        {/* ---------- Contact ---------- */}
         <section className="section wrap" id="contact" aria-labelledby="contact-title">
           <div className="contact">
             <div>
               <p className="eyebrow">Contact</p>
-              <h2 id="contact-title">Let's work together</h2>
+              <h2 id="contact-title">Let's build something that matters.</h2>
               <p className="section-lede">
                 Open to collaborations in AI research, medical imaging and production ML systems.
               </p>
@@ -483,11 +522,11 @@ export default function App() {
       <footer className="site-footer">
         <div className="wrap footer-inner">
           <span>© {new Date().getFullYear()} Nimrah Naeem</span>
-          <span className="muted">{profile.location}</span>
+          <span className="muted">One tap. One woman. One future.</span>
         </div>
       </footer>
 
-      <ProjectDialog project={openProject} onClose={() => setOpenProject(null)} />
+      <DeckViewer deck={deck} onClose={() => setDeck(null)} />
     </>
   );
 }
